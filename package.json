@@ -26,6 +26,15 @@
     "opencode-teleagent"
   ],
   "license": "MIT",
+  "author": "anbulang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anbulang/magpie-teleagent.git"
+  },
+  "homepage": "https://github.com/anbulang/magpie-teleagent#readme",
+  "bugs": {
+    "url": "https://github.com/anbulang/magpie-teleagent/issues"
+  },
   "magpie": {
     "name": "TeleAgent 模型",
     "summary": {

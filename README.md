@@ -101,9 +101,9 @@ magpie 的 TeleAgent 供应商插件：复用 TeleAgent 桌面端已有的登录
 
 | 方式 | 命令 |
 |---|---|
-| npm 包 | `magpie plugin add opencode-teleagent-auth` |
-| git 仓库 | `magpie plugin add github:<owner>/<repo>` |
-| 本地目录 | `magpie plugin add /path/to/magpie-teleagent` |
+| git 仓库（现在就能用） | `magpie plugin add github:anbulang/magpie-teleagent` |
+| 本地目录（开发用） | `magpie plugin add /path/to/magpie-teleagent` |
+| npm 包（发布后可用） | `magpie plugin add opencode-teleagent-auth` |
 
 克隆下来直接指向仓库根就是本地目录方式；开发也用这个，改完把插件关掉再打开即可。
 
