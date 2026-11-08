@@ -935,4 +935,4 @@ bash magpie/scripts/sandbox.sh --real-home
 
 ## License
 
-[MIT](../LICENSE)
+[MIT](LICENSE)
