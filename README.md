@@ -1,6 +1,7 @@
 # opencode-teleagent-auth
 
 magpie（usemagpie.ai）的 TeleAgent 供应商插件，包名 `opencode-teleagent-auth`。
+npm: [opencode-teleagent-auth](https://www.npmjs.com/package/opencode-teleagent-auth)
 
 把本机已登录的 **TeleAgent**（天翼 AI 星辰超级智能体桌面版）接进 magpie，
 在 magpie 里多出一个 `teleagent` 供应商和 5 个模型。
@@ -101,9 +102,13 @@ magpie 的 TeleAgent 供应商插件：复用 TeleAgent 桌面端已有的登录
 
 | 方式 | 命令 |
 |---|---|
-| git 仓库（现在就能用） | `magpie plugin add github:anbulang/magpie-teleagent` |
+| npm 包（推荐） | `magpie plugin add opencode-teleagent-auth` |
+| git 仓库（跟最新提交） | `magpie plugin add github:anbulang/magpie-teleagent` |
+| 钉版本 | `magpie plugin add github:anbulang/magpie-teleagent#v0.1.0` |
 | 本地目录（开发用） | `magpie plugin add /path/to/magpie-teleagent` |
-| npm 包（发布后可用） | `magpie plugin add opencode-teleagent-auth` |
+
+npm 上是 [`opencode-teleagent-auth`](https://www.npmjs.com/package/opencode-teleagent-auth)，
+MIT，无第三方依赖。三种装法的插件内容相同（同一份代码），npm 与 git 只是分发方式不同。
 
 克隆下来直接指向仓库根就是本地目录方式；开发也用这个，改完把插件关掉再打开即可。
 

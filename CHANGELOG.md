@@ -27,6 +27,12 @@
 - **本地模型白名单**：目录外的 model id 在插件内直接 404，不打到上游
   （实测上游对未知 id 会静默回落到别的模型）。
 
+### 分发
+
+- npm：`magpie plugin add opencode-teleagent-auth`（2026-11-08 发布 0.1.0）
+- git：`magpie plugin add github:anbulang/magpie-teleagent`
+- 仓库：https://github.com/anbulang/magpie-teleagent
+
 ### 测试
 
 146 项，5 个文件，全部离线：
