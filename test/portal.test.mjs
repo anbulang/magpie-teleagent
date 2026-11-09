@@ -17,7 +17,7 @@
  * 可以正常加载；但**本测试文件**依赖 bun:test，node 下不可运行，这是刻意的。
  */
 
-import { describe, it, expect } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -133,21 +133,26 @@ describe('userIdFromScope', () => {
 describe('appPaths / cookieDbCandidates / findCookieDb', () => {
   it('appPaths 指向 XDG 位置', () => {
     const p = appPaths('/tmp/fake-home')
-    expect(p.data).toBe('/tmp/fake-home/.local/share/TeleAgent')
-    expect(p.config).toBe('/tmp/fake-home/.config/TeleAgent')
+    expect(p.data).toBe(path.join('/tmp/fake-home', '.local', 'share', 'TeleAgent'))
+    expect(p.config).toBe(path.join('/tmp/fake-home', '.config', 'TeleAgent'))
   })
 
   it('指定 scope 时：Partitions 优先，且**不包含**主 Cookie 库', () => {
     const list = cookieDbCandidates('/h', 'v1_public_2092131099330392064')
-    expect(list.length).toBe(2)
-    expect(list[0]).toBe('/h/.local/share/TeleAgent/Partitions/owner%3Av1_public_2092131099330392064/Cookies')
-    expect(list[1]).toBe('/h/.local/share/TeleAgent/Partitions/owner:v1_public_2092131099330392064/Cookies')
-    expect(list).not.toContain('/h/.local/share/TeleAgent/Cookies')
+    expect(list.length).toBe(4)
+    expect(list[0]).toBe(path.join('/h', '.local', 'share', 'TeleAgent', 'Partitions', 'owner%3Av1_public_2092131099330392064', 'Network', 'Cookies'))
+    expect(list[1]).toBe(path.join('/h', '.local', 'share', 'TeleAgent', 'Partitions', 'owner%3Av1_public_2092131099330392064', 'Cookies'))
+    expect(list[2]).toBe(path.join('/h', '.local', 'share', 'TeleAgent', 'Partitions', 'owner:v1_public_2092131099330392064', 'Network', 'Cookies'))
+    expect(list[3]).toBe(path.join('/h', '.local', 'share', 'TeleAgent', 'Partitions', 'owner:v1_public_2092131099330392064', 'Cookies'))
+    expect(list).not.toContain(path.join('/h', '.local', 'share', 'TeleAgent', 'Cookies'))
   })
 
   it('未指定 scope 时才回落到主 Cookie 库', () => {
     const list = cookieDbCandidates('/h')
-    expect(list).toEqual(['/h/.local/share/TeleAgent/Cookies'])
+    expect(list).toEqual([
+      path.join('/h', '.local', 'share', 'TeleAgent', 'Network', 'Cookies'),
+      path.join('/h', '.local', 'share', 'TeleAgent', 'Cookies'),
+    ])
   })
 
   it('findCookieDb 返回第一个存在的路径，都不存在返回 null', () => {
@@ -329,6 +334,49 @@ describe('readPortalAuth', () => {
     }
   })
 
+  it('未指定 scope 时优先读当前账号分区，不借用主库的其他账号', () => {
+    const { home, userData, cleanup } = makeHome()
+    try {
+      const scope = 'v1_public_123'
+      fs.writeFileSync(path.join(userData, 'current-owner.json'), JSON.stringify({ ownerDir: scope }))
+      const partition = touch(path.join(userData, 'Partitions', `owner%3A${scope}`, 'Cookies'))
+      const main = touch(path.join(userData, 'Cookies'))
+      fs.writeFileSync(partition, 'operationToken|selected-account\n')
+      fs.writeFileSync(main, 'operationToken|another-account\n')
+      expect(readPortalAuth(home, undefined, { run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8') })).toEqual({
+        userId: '123', operationToken: 'selected-account', operToken: '', source: partition,
+      })
+    } finally { cleanup() }
+  })
+
+  it('优先读 Windows 网络沙箱迁移后的账号 Network/Cookies', () => {
+    const { home, userData, cleanup } = makeHome()
+    try {
+      const scope = 'v1_public_123'
+      const partition = path.join(userData, 'Partitions', `owner%3A${scope}`)
+      const network = touch(path.join(partition, 'Network', 'Cookies'))
+      const legacy = touch(path.join(partition, 'Cookies'))
+      fs.writeFileSync(network, 'operationToken|migrated-account\n')
+      fs.writeFileSync(legacy, 'operationToken|stale-account\n')
+      expect(readPortalAuth(home, scope, { run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8') })).toEqual({
+        userId: '123', operationToken: 'migrated-account', operToken: '', source: network,
+      })
+    } finally { cleanup() }
+  })
+
+  it('当前账号没有分区时可读取根目录 Network/Cookies', () => {
+    const { home, userData, cleanup } = makeHome()
+    try {
+      fs.writeFileSync(path.join(userData, 'current-owner.json'), JSON.stringify({ ownerDir: 'v1_public_123' }))
+      const network = touch(path.join(userData, 'Network', 'Cookies'))
+      fs.writeFileSync(network, 'operationToken|migrated-current\n')
+      expect(readPortalAuth(home, undefined, { run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8') })).toEqual({
+        userId: '123', operationToken: 'migrated-current', operToken: '', source: network,
+      })
+      expect(readPortalAuth(home, 'v1_public_123', { run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8') })).toBeNull()
+    } finally { cleanup() }
+  })
+
   it('缺少 operationToken → null（有 operToken 也不算已登录）', () => {
     const { home, userData, cleanup } = makeHome()
     try {
@@ -364,6 +412,65 @@ describe('readPortalAuth', () => {
     } finally {
       cleanup()
     }
+  })
+})
+
+describe('portal 自定义数据目录', () => {
+  let fixture
+  let previousData
+  let previousConfig
+  let customData
+
+  beforeEach(() => {
+    fixture = makeHome()
+    previousData = process.env.TELEAGENT_DATA
+    previousConfig = process.env.TELEAGENT_CONFIG
+    customData = path.join(fixture.root, 'custom-data')
+    fs.mkdirSync(customData, { recursive: true })
+    process.env.TELEAGENT_DATA = customData
+    process.env.TELEAGENT_CONFIG = path.join(fixture.root, 'custom-config')
+  })
+
+  afterEach(() => {
+    if (previousData === undefined) delete process.env.TELEAGENT_DATA
+    else process.env.TELEAGENT_DATA = previousData
+    if (previousConfig === undefined) delete process.env.TELEAGENT_CONFIG
+    else process.env.TELEAGENT_CONFIG = previousConfig
+    fixture.cleanup()
+  })
+
+  it('在与聊天凭据相同的数据根目录读取指定账号的 cookie', () => {
+    const scope = 'v1_public_123'
+    const db = touch(path.join(customData, 'Partitions', `owner%3A${scope}`, 'Cookies'))
+    fs.writeFileSync(db, 'operationToken|custom-account\n')
+    const auth = readPortalAuth(fixture.home, scope, {
+      run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8'),
+    })
+    expect(auth).toEqual({ userId: '123', operationToken: 'custom-account', operToken: '', source: db })
+  })
+
+  it('当前账号和主 cookie 库也来自自定义数据目录', () => {
+    fs.writeFileSync(path.join(customData, 'current-owner.json'), JSON.stringify({ ownerDir: 'v1_public_456' }))
+    const db = touch(path.join(customData, 'Cookies'))
+    fs.writeFileSync(db, 'operationToken|current-custom-account\n')
+    const auth = readPortalAuth(fixture.home, undefined, {
+      run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8'),
+    })
+    expect(auth).toEqual({ userId: '456', operationToken: 'current-custom-account', operToken: '', source: db })
+  })
+
+  it('指定账号缺少分区时不借用主库或默认数据根目录的 cookie', () => {
+    const scope = 'v1_public_123'
+    for (const db of [
+      path.join(customData, 'Cookies'),
+      path.join(fixture.userData, 'Partitions', `owner%3A${scope}`, 'Cookies'),
+    ]) {
+      touch(db)
+      fs.writeFileSync(db, 'operationToken|another-account\n')
+    }
+    expect(readPortalAuth(fixture.home, scope, {
+      run: ({ dbPath }) => fs.readFileSync(dbPath, 'utf8'),
+    })).toBeNull()
   })
 })
 

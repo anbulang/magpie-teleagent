@@ -18,11 +18,14 @@ import {
   currentScope,
   decryptSafeStorage,
   parseClaims,
-  diagnoseCredential,
+  diagnoseCredential as diagnosePlatformCredential,
   listCredentialScopes,
-  readKeychainPassword,
+  readKeychainPassword as readPlatformKeychain,
   CredentialState,
 } from '../lib/credential.mjs'
+
+const diagnoseCredential = (home, options) => diagnosePlatformCredential(home, { ...options, platform: 'darwin' })
+const readKeychainPassword = (options) => readPlatformKeychain({ ...options, platform: 'darwin' })
 
 let home = ''
 
@@ -74,8 +77,8 @@ describe('appPaths', () => {
     delete process.env.TELEAGENT_DATA
     delete process.env.TELEAGENT_CONFIG
     const p = appPaths('/Users/someone')
-    expect(p.data).toBe('/Users/someone/.local/share/TeleAgent')
-    expect(p.config).toBe('/Users/someone/.config/TeleAgent')
+    expect(p.data).toBe(path.join('/Users/someone', '.local', 'share', 'TeleAgent'))
+    expect(p.config).toBe(path.join('/Users/someone', '.config', 'TeleAgent'))
     process.env.TELEAGENT_DATA = path.join(home, '.local', 'share', 'TeleAgent')
     process.env.TELEAGENT_CONFIG = path.join(home, '.config', 'TeleAgent')
   })
@@ -155,26 +158,18 @@ describe('parseClaims', () => {
 })
 
 describe('diagnoseCredential', () => {
-  it('缺少 TeleAgent 数据目录 → DATA_MISSING（若不是 macOS 会是 NOT_MACOS）', () => {
+  it('缺少 TeleAgent 数据目录 → DATA_MISSING', () => {
     const d = diagnoseCredential(home, { keychain: okKeychain })
-    if (process.platform !== 'darwin') {
-      expect(d.state).toBe(CredentialState.NOT_MACOS)
-    } else {
-      expect(d.state).toBe(CredentialState.DATA_MISSING)
-      expect(d.remedy).toBeTruthy()
-    }
+    expect(d.state).toBe(CredentialState.DATA_MISSING)
+    expect(d.remedy).toBeTruthy()
     expect(d.ok).toBe(false)
   })
 
   it('没有 token.json → TOKEN_FILE_MISSING / NOT_SIGNED_IN', () => {
     fs.mkdirSync(path.join(home, '.local', 'share', 'TeleAgent', 'users'), { recursive: true })
     const d = diagnoseCredential(home, { keychain: okKeychain })
-    if (process.platform !== 'darwin') {
-      expect(d.state).toBe(CredentialState.NOT_MACOS)
-    } else {
-      expect([CredentialState.NOT_SIGNED_IN, CredentialState.TOKEN_FILE_MISSING]).toContain(d.state)
-      expect(d.ok).toBe(false)
-    }
+    expect([CredentialState.NOT_SIGNED_IN, CredentialState.TOKEN_FILE_MISSING]).toContain(d.state)
+    expect(d.ok).toBe(false)
   })
 
   it('钥匙串没有条目 → KEYCHAIN_MISSING，并给出可执行建议', () => {
@@ -183,22 +178,14 @@ describe('diagnoseCredential', () => {
       scope: 'v1_public_2092131099330392064',
       keychain: { ok: false, state: CredentialState.KEYCHAIN_MISSING },
     })
-    if (process.platform !== 'darwin') {
-      expect(d.state).toBe(CredentialState.NOT_MACOS)
-    } else {
-      expect(d.state).toBe(CredentialState.KEYCHAIN_MISSING)
-      expect(d.remedy).toContain('钥匙串')
-    }
+    expect(d.state).toBe(CredentialState.KEYCHAIN_MISSING)
+    expect(d.remedy).toContain('钥匙串')
   })
 
   it('正常凭据 → ok，带账号名与剩余天数', () => {
     const scope = 'v1_public_2092131099330392064'
     writeAccount(scope)
     const d = diagnoseCredential(home, { scope, keychain: okKeychain })
-    if (process.platform !== 'darwin') {
-      expect(d.state).toBe(CredentialState.NOT_MACOS)
-      return
-    }
     expect(d.ok).toBe(true)
     expect(d.state).toBe(CredentialState.OK)
     expect(d.accountName).toBe('示例账号')
@@ -211,7 +198,6 @@ describe('diagnoseCredential', () => {
     const scope = 'v1_public_2092131099330392064'
     writeAccount(scope, { claims: { accountName: '过期账号', exp: Math.floor(Date.now() / 1000) - 3600 } })
     const d = diagnoseCredential(home, { scope, keychain: okKeychain })
-    if (process.platform !== 'darwin') return
     expect(d.ok).toBe(false)
     expect(d.state).toBe(CredentialState.EXPIRED)
     expect(d.remedy).toContain('重新登录')
@@ -225,7 +211,6 @@ describe('diagnoseCredential', () => {
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, 'token.json'), '{ not json')
     const d = diagnoseCredential(home, { scope, keychain: okKeychain })
-    if (process.platform !== 'darwin') return
     expect(d.ok).toBe(false)
     expect(d.state).toBe(CredentialState.DECRYPT_FAILED)
   })
@@ -260,10 +245,6 @@ describe('readKeychainPassword', () => {
     const notFound = () => { const e = new Error('Command failed'); e.stderr = 'security: SecKeychainSearchCopyNext: could not be found.'; throw e }
     const denied = () => { const e = new Error('Command failed'); e.stderr = 'User interaction is not allowed. (-25308)'; throw e }
     const ok = () => Buffer.from('pw\n')
-    if (process.platform !== 'darwin') {
-      expect(readKeychainPassword({ exec: ok }).state).toBe(CredentialState.NOT_MACOS)
-      return
-    }
     expect(readKeychainPassword({ exec: notFound }).state).toBe(CredentialState.KEYCHAIN_MISSING)
     expect(readKeychainPassword({ exec: denied }).state).toBe(CredentialState.KEYCHAIN_DENIED)
     expect(readKeychainPassword({ exec: ok })).toEqual({ ok: true, password: 'pw' })
