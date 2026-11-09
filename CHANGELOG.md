@@ -8,8 +8,11 @@
 ### 文档
 
 - 统一命名：仓库固定叫 `magpie-teleagent`，npm 包固定叫 `opencode-teleagent-auth`，
-  按用途分开写（README 首屏加了「哪个名字用在哪」对照表；npm 关键词去掉半改的旧名
+  按用途分开写（README 首屏写明两者分工；npm 关键词去掉半改的旧名
   `opencode-teleagent`，补上 `magpie-teleagent` / `opencode-teleagent-auth`）。
+- README 重写：参考 `dsh-connect-teleagent` 的排版（徽章 / 特性 / 模型 / 安装 / 使用 /
+  原理 / 费用与风险 / 故障排查 / 隐私 / 开发 / 限制），从 950 行压到 467 行；
+  顺手修掉拆分仓库时残留的错误路径（`magpie/lib/`、`cd magpie`、`magpie/scripts/`）。
 
 ## 0.1.0 — 2026-11-08
 
