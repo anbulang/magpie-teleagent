@@ -48,6 +48,23 @@ API Error: 400 TeleAgent: 该模型始终思考，不支持关闭思考；请使
 断言"发出去的 `medium` 已经是 `high`"、"`off` 已被删掉"。这三项在移除修复后
 **确实会红**（已验证），不是永远绿的假测试。
 
+### 代码审查跟进
+
+magpie-community/plugins 的维护者在合并 registry 条目时提了三条，都已修：
+
+- **域名白名单**（安全）：`createSignedFetch` 现在拒绝把签名发给
+  `agent.teleai.com.cn` 以外的 origin。之前 `api` 配置被指向别处时，JWT 签名与
+  设备指纹会一起送过去。比较 origin（协议 + 域名 + 端口），所以
+  `agent.teleai.com.cn.evil.test` 与 `http://` 降级都被挡掉；错误信息只带域名，
+  不带 path / query。
+- **`x-magpie-sign-in` 语义**（真 bug）：`explainFailure` 的注释说 40109 用 `kept`，
+  代码却发 `expired`。核对 magpie 源码后确认 `expired` 会把账号标成「登录失效、
+  请重新登录」，而 40109 封的是模型调用通道（`magpie quota` 仍能读积分），
+  重登解决不了封禁。现在 40105 与 40109 **都发 `kept`**；真正的凭据过期仍走
+  `auth.loader` 抛的 `error.signIn = 'expired'`，不在这条路径上。
+- **registry summary**：`package.json` 的 `magpie.summary` 补上 "Unofficial" 与
+  "macOS only"，与 orcaterm / deepaicode 等条目的写法一致。
+
 ## 0.1.1 — 2026-11-09
 
 只改文档与元数据，插件行为与 0.1.0 **完全一致**（代码零改动）。

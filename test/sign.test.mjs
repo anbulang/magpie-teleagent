@@ -15,6 +15,7 @@ import {
   buildAuthHeaders,
   signedPathFrom,
   createSignedFetch,
+  isUpstreamHost,
 } from '../lib/sign.mjs'
 import { MODELS, buildModels, VISION_MODEL_IDS, TELEAI_BASE_URL, TELEAI_SIGNED_PATH } from '../lib/models.mjs'
 import { createGuard, GuardBlockedError, DEFAULT_GUARD } from '../lib/guard.mjs'
@@ -127,6 +128,57 @@ describe('signedPathFrom', () => {
 
   it('非法 URL 回退到默认对话路径（不抛）', () => {
     expect(signedPathFrom('not a url')).toBe(TELEAI_SIGNED_PATH)
+  })
+})
+
+describe('isUpstreamHost', () => {
+  it('上游自己的地址', () => {
+    expect(isUpstreamHost(`${TELEAI_BASE_URL}/chat/completions`)).toBe(true)
+    expect(isUpstreamHost('https://agent.teleai.com.cn/')).toBe(true)
+  })
+
+  it('前缀相同但域名不同的，挡掉', () => {
+    // 用 host 比较而不是 startsWith，这类地址不能被放行
+    expect(isUpstreamHost('https://agent.teleai.com.cn.evil.test/v1/chat/completions')).toBe(false)
+    expect(isUpstreamHost('https://agent.teleai.com.cn@evil.test/v1')).toBe(false)
+  })
+
+  it('http / 别的域名 / 非法地址都挡掉', () => {
+    expect(isUpstreamHost('http://agent.teleai.com.cn/v1')).toBe(false)   // 协议降级
+    expect(isUpstreamHost('https://evil.test/v1')).toBe(false)
+    expect(isUpstreamHost('not a url')).toBe(false)
+  })
+})
+
+describe('createSignedFetch 的域名白名单', () => {
+  const auth = { token: FIXTURE.token, installId: 'i', deviceId: 'd', appVersion: '2.7.1' }
+
+  it('非上游域名：抛错，且请求根本没有发出去（签名不外泄）', async () => {
+    let called = 0
+    const signed = createSignedFetch({
+      auth,
+      apiKey: 'sk-gw',
+      baseFetch: async () => { called++; return new Response('ok', { status: 200 }) },
+    })
+    await expect(signed('https://evil.test/v1/chat/completions', { method: 'POST', body: '{}' }))
+      .rejects.toThrow(/拒绝向非上游域名发送签名请求/)
+    expect(called).toBe(0)
+  })
+
+  it('错误信息里带的是域名，不带 path / query', async () => {
+    const signed = createSignedFetch({
+      auth,
+      apiKey: 'sk-gw',
+      baseFetch: async () => new Response('ok', { status: 200 }),
+    })
+    await expect(signed('https://evil.test/secret/path?token=abc', { method: 'POST', body: '{}' }))
+      .rejects.toThrow(/evil\.test/)
+    try {
+      await signed('https://evil.test/secret/path?token=abc', { method: 'POST', body: '{}' })
+    } catch (e) {
+      expect(e.message).not.toContain('/secret/path')
+      expect(e.message).not.toContain('token=abc')
+    }
   })
 })
 

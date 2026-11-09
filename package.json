@@ -39,8 +39,8 @@
   "magpie": {
     "name": "TeleAgent 模型",
     "summary": {
-      "en": "The TeleAgent desktop app's 5 models in magpie, through its own sign-in.",
-      "zh": "把本机登录的 TeleAgent 桌面端 5 个模型接进 magpie。"
+      "en": "Unofficial TeleAgent (天翼 AI 星辰超级智能体) desktop app models in magpie: the app's own sign-in, no API key, macOS only, with points balance and daily check-in.",
+      "zh": "非官方接入 TeleAgent（天翼 AI 星辰超级智能体）桌面端：复用桌面端登录态，不需要 API Key，仅 macOS，带积分余额与每日签到。"
     },
     "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwMDVhY2MiLz48cGF0aCBkPSJNMjAgNDJWMjJsMjQgMjBWMjIiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz48L3N2Zz4="
   },

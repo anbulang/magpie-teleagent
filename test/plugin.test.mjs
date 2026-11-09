@@ -284,17 +284,26 @@ describe('explainFailure', () => {
     expect(out.headers.get('x-magpie-sign-in')).toBeNull()
   })
 
-  it('40109 封禁 → x-magpie-sign-in: expired', async () => {
+  it('40109 封禁 → x-magpie-sign-in: kept', async () => {
+    // 封的是模型调用通道，桌面端登录态仍然有效（quota 还能读），
+    // 报 expired 会把用户引向「重新登录」，而重登解决不了封禁。
     const res = new Response('{"code":40109,"message":"current user is banned"}', { status: 401 })
     const out = await explainFailure(res)
     expect(out.status).toBe(401)
-    expect(out.headers.get('x-magpie-sign-in')).toBe('expired')
+    expect(out.headers.get('x-magpie-sign-in')).toBe('kept')
   })
 
   it('40105 疑似攻击 → x-magpie-sign-in: kept（不要误判成登录失效）', async () => {
     const res = new Response('{"code":40105,"message":"您的请求疑似攻击请求"}', { status: 401 })
     const out = await explainFailure(res)
     expect(out.headers.get('x-magpie-sign-in')).toBe('kept')
+  })
+
+  it('两种错误都不会被标成 expired（真正的过期只走 loader 的 signIn）', async () => {
+    for (const body of ['{"code":40109,"message":"current user is banned"}', '{"code":40105,"message":"您的请求疑似攻击请求"}']) {
+      const out = await explainFailure(new Response(body, { status: 401 }))
+      expect(out.headers.get('x-magpie-sign-in')).not.toBe('expired')
+    }
   })
 
   it('正文原样保留（agent 要看到厂商原话）', async () => {

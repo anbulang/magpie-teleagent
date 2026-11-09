@@ -453,6 +453,14 @@ function modelOfBody(body) {
  *   - `40105 您的请求疑似攻击请求`：网关 apiKey 没带上（本机桌面端版本不受支持）
  *   - `40109 current user is banned`：账号被封，用 `X-Magpie-Sign-In: kept`
  *     明确告诉 magpie「不要把这个当登录失效去刷别的账号」，同时把原话透传。
+ *
+ * 两个错误**都不是**登录失效，所以都报 `kept`：
+ *   - `40105` 是本机桌面端版本不受支持，凭据是好的；
+ *   - `40109` 封的是**模型调用通道**，桌面端登录态仍然有效（`magpie quota`
+ *     照样能读到积分），报 `expired` 会让 magpie 提示「重新登录」，
+ *     而重登解决不了封禁，只是把人往错误的方向带。
+ *
+ * 真正的凭据过期走 `auth.loader` 抛的 `error.signIn = 'expired'`，不在这条路径上。
  */
 async function explainFailure(response) {
   const status = Number(response?.status ?? 0)
@@ -471,7 +479,8 @@ async function explainFailure(response) {
   // Response 的 headers 是不可变的（fetch 回来的），要加 magpie 自己的头
   // 必须重建一个 Response。正文仍然原样（这里是错误体，很小）。
   const headers = new Headers(response.headers)
-  headers.set('x-magpie-sign-in', banned ? 'expired' : 'kept')
+  // 两个都不是登录失效：保留登录态，让 magpie 不要把账号标成「需要重新登录」。
+  headers.set('x-magpie-sign-in', 'kept')
   const body = status === 204 || status === 205 ? null : text
   return new Response(body, { status, statusText: response.statusText, headers })
 }

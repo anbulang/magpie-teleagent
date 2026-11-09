@@ -392,6 +392,11 @@ https://agent.teleai.com.cn
 └── /meter/super-agent/user/portal/...            积分与签到
 ```
 
+签名的请求**只会**发给这个 origin。magpie 的 `api` 是用户可改的配置，如果它被改成
+别的域名（打错、从别处抄来、或恶意模板），插件会直接拒绝发请求并报错，不会把 JWT
+签名和设备指纹送出去；比较的是 origin（协议 + 域名 + 端口），所以
+`agent.teleai.com.cn.evil.test` 和 `http://` 降级都会被挡掉。
+
 不写请求日志、不落盘请求/响应体、不打印 token 或 cookie、不上报账号信息。`magpie plugin --json`
 和 `magpie quota` 的输出只有状态和数字，可以贴出来求助（贴前还是看一眼，别带完整路径）。
 可以自己核对：
