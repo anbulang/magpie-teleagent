@@ -1,14 +1,14 @@
 <p align="center">
-  <a href="https://github.com/anbulang/magpie-teleagent/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/anbulang/magpie-teleagent?label=release&color=2ea44f"></a>
+  <a href="https://github.com/anbulang/opencode-teleagent-auth/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/anbulang/opencode-teleagent-auth?label=release&color=2ea44f"></a>
   <a href="https://www.npmjs.com/package/opencode-teleagent-auth"><img alt="npm" src="https://img.shields.io/npm/v/opencode-teleagent-auth?label=npm&color=cb3837"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-purple"></a>
-  <a href="https://github.com/anbulang/magpie-teleagent"><img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey"></a>
-  <a href="https://github.com/anbulang/magpie-teleagent"><img alt="magpie" src="https://img.shields.io/badge/magpie-0.1.684%2B-orange"></a>
-  <a href="https://github.com/anbulang/magpie-teleagent"><img alt="tests" src="https://img.shields.io/badge/tests-146%20passing-brightgreen"></a>
-  <a href="https://github.com/anbulang/magpie-teleagent/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/anbulang/magpie-teleagent?style=social"></a>
+  <a href="https://github.com/anbulang/opencode-teleagent-auth"><img alt="platform" src="https://img.shields.io/badge/platform-macOS-lightgrey"></a>
+  <a href="https://github.com/anbulang/opencode-teleagent-auth"><img alt="magpie" src="https://img.shields.io/badge/magpie-0.1.684%2B-orange"></a>
+  <a href="https://github.com/anbulang/opencode-teleagent-auth"><img alt="tests" src="https://img.shields.io/badge/tests-146%20passing-brightgreen"></a>
+  <a href="https://github.com/anbulang/opencode-teleagent-auth/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/anbulang/opencode-teleagent-auth?style=social"></a>
 </p>
 
-<h1 align="center">magpie-teleagent</h1>
+<h1 align="center">opencode-teleagent-auth</h1>
 
 <p align="center">
   把本机登录的 <b>TeleAgent</b>（天翼 AI 星辰超级智能体桌面端）的 5 个模型接进 <b>magpie</b>（OpenCode）。
@@ -16,8 +16,7 @@
   复用桌面端已有登录态，<b>不需要注册新账号、不需要 API key</b>。
 </p>
 
-> 仓库名 `magpie-teleagent`，npm 包名 [`opencode-teleagent-auth`](https://www.npmjs.com/package/opencode-teleagent-auth)：
-> 装的时候用包名，clone / issue / Release 用仓库名。插件在 magpie 里的显示名是 **TeleAgent 模型**，
+> 仓库与 npm 包同名，都是 `opencode-teleagent-auth`。插件在 magpie 里的显示名是 **TeleAgent 模型**，
 > 供应商 id 是 `teleagent`，模型写作 `teleagent/chat-pro`。
 
 ---
@@ -72,21 +71,21 @@ magpie plugin add opencode-teleagent-auth
 ### 方式 B：git 仓库
 
 ```bash
-magpie plugin add github:anbulang/magpie-teleagent
-magpie plugin add github:anbulang/magpie-teleagent#v0.1.0   # 钉版本
+magpie plugin add github:anbulang/opencode-teleagent-auth
+magpie plugin add github:anbulang/opencode-teleagent-auth#v0.1.0   # 钉版本
 ```
 
 ### 方式 C：本地目录（开发用）
 
 ```bash
-magpie plugin add /path/to/magpie-teleagent
+magpie plugin add /path/to/opencode-teleagent-auth
 ```
 
 界面里也能装：**插件** → **发现** / **添加插件** → 粘贴包名、git 地址或本地路径。
 
-三种装法内容是同一份代码。注意插件短名按安装方式推导：npm / git 安装按包名推导为
-`teleagent`（工具全名 `teleagent_points`），本地目录安装按目录名推导（工具全名
-`magpie-teleagent_points`）。
+三种装法内容是同一份代码。插件短名由包名推导：剥掉 `opencode-` 前缀与 `-auth` 后缀得
+`teleagent`，所以工具全名是 `teleagent_points`、MCP 短名是 `teleagent`。按本地目录装时目录名
+若不同，工具全名会跟着变（目录名 `opencode-teleagent-auth` 则仍是 `teleagent_points`）。
 
 ### 装好了怎么确认
 
@@ -107,7 +106,7 @@ sb=$(mktemp -d)
 m() { env HOME=$sb XDG_CONFIG_HOME=$sb/.config XDG_CACHE_HOME=$sb/.cache \
           MAGPIE_ADDR=127.0.0.1:3499 magpie "$@"; }
 
-m plugin add /path/to/magpie-teleagent
+m plugin add /path/to/opencode-teleagent-auth
 m plugin --json
 ```
 

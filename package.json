@@ -19,7 +19,6 @@
   "keywords": [
     "magpie",
     "magpie-plugin",
-    "magpie-teleagent",
     "opencode",
     "opencode-plugin",
     "opencode-teleagent-auth",
@@ -30,11 +29,11 @@
   "author": "anbulang",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/anbulang/magpie-teleagent.git"
+    "url": "git+https://github.com/anbulang/opencode-teleagent-auth.git"
   },
-  "homepage": "https://github.com/anbulang/magpie-teleagent#readme",
+  "homepage": "https://github.com/anbulang/opencode-teleagent-auth#readme",
   "bugs": {
-    "url": "https://github.com/anbulang/magpie-teleagent/issues"
+    "url": "https://github.com/anbulang/opencode-teleagent-auth/issues"
   },
   "magpie": {
     "name": "TeleAgent 模型",

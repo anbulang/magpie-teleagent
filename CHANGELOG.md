@@ -1,17 +1,19 @@
 # Changelog
 
-本仓库 `magpie-teleagent` 是 magpie / OpenCode 的 TeleAgent 供应商插件，
-作为独立 npm 包发布为 `opencode-teleagent-auth`；不依赖、也不包含 DeepSeek Harness 的插件。
+本仓库与 npm 包同名，都是 `opencode-teleagent-auth`（magpie / OpenCode 的 TeleAgent 供应商插件）；
+不依赖、也不包含 DeepSeek Harness 的插件。
 
 ## Unreleased
 
 ### 文档
 
-- 统一命名：仓库固定叫 `magpie-teleagent`，npm 包固定叫 `opencode-teleagent-auth`，
-  按用途分开写（README 首屏写明两者分工；npm 关键词去掉半改的旧名
-  `opencode-teleagent`，补上 `magpie-teleagent` / `opencode-teleagent-auth`）。
+- **仓库改名为 `opencode-teleagent-auth`**，与 npm 包名统一（旧地址
+  `anbulang/magpie-teleagent` 会由 GitHub 自动跳转）。`package.json` 的
+  `repository` / `homepage` / `bugs` 与 README 徽章、安装命令同步更新。
+  这样插件短名推导保持 `teleagent`（`opencode-` 前缀 + `-auth` 后缀被剥掉），
+  工具全名仍是 `teleagent_points`。
 - README 重写：参考 `dsh-connect-teleagent` 的排版（徽章 / 特性 / 模型 / 安装 / 使用 /
-  原理 / 费用与风险 / 故障排查 / 隐私 / 开发 / 限制），从 950 行压到 467 行；
+  原理 / 费用与风险 / 故障排查 / 隐私 / 开发 / 限制），从 950 行压到 460 行；
   顺手修掉拆分仓库时残留的错误路径（`magpie/lib/`、`cd magpie`、`magpie/scripts/`）。
 
 ## 0.1.0 — 2026-11-08
@@ -41,8 +43,9 @@
 ### 分发
 
 - npm：`magpie plugin add opencode-teleagent-auth`（2026-11-08 发布 0.1.0）
-- git：`magpie plugin add github:anbulang/magpie-teleagent`
-- 仓库：https://github.com/anbulang/magpie-teleagent
+- git：`magpie plugin add github:anbulang/opencode-teleagent-auth`
+  （当时仓库名为 `magpie-teleagent`，旧地址仍可装，GitHub 会自动跳转）
+- 仓库：https://github.com/anbulang/opencode-teleagent-auth
 
 ### 测试
 
