@@ -1,7 +1,14 @@
-# opencode-teleagent-auth
+# magpie-teleagent
 
-magpie（usemagpie.ai）的 TeleAgent 供应商插件，包名 `opencode-teleagent-auth`。
-npm: [opencode-teleagent-auth](https://www.npmjs.com/package/opencode-teleagent-auth)
+magpie（usemagpie.ai）的 TeleAgent 供应商插件。仓库名 `magpie-teleagent`，
+npm 包名 `opencode-teleagent-auth` —— 两个名字各管一处，别混：
+
+| 名字 | 用在哪 | 地址 |
+|---|---|---|
+| `magpie-teleagent` | 仓库：clone、`github:` 安装、issue、Release | [GitHub](https://github.com/anbulang/magpie-teleagent) |
+| `opencode-teleagent-auth` | npm 包：`magpie plugin add opencode-teleagent-auth` | [npm](https://www.npmjs.com/package/opencode-teleagent-auth) |
+| `teleagent` | magpie 里的供应商 id、模型前缀、MCP 短名 | — |
+| `TeleAgent 模型` | magpie 插件列表里的显示名（`magpie.name`） | — |
 
 把本机已登录的 **TeleAgent**（天翼 AI 星辰超级智能体桌面版）接进 magpie，
 在 magpie 里多出一个 `teleagent` 供应商和 5 个模型。

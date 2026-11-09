@@ -1,7 +1,7 @@
 {
   "name": "opencode-teleagent-auth",
   "version": "0.1.0",
-  "description": "OpenCode / magpie provider plugin: TeleAgent (天翼 AI 星辰超级智能体) models through the desktop app's own sign-in",
+  "description": "magpie / OpenCode provider plugin: TeleAgent (天翼 AI 星辰超级智能体) models through the desktop app's own sign-in",
   "type": "module",
   "main": "./index.mjs",
   "exports": {
@@ -17,13 +17,14 @@
     "LICENSE"
   ],
   "keywords": [
-    "opencode",
-    "opencode-plugin",
     "magpie",
     "magpie-plugin",
+    "magpie-teleagent",
+    "opencode",
+    "opencode-plugin",
+    "opencode-teleagent-auth",
     "teleagent",
-    "teleai",
-    "opencode-teleagent"
+    "teleai"
   ],
   "license": "MIT",
   "author": "anbulang",

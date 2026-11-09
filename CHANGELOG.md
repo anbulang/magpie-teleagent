@@ -1,7 +1,15 @@
 # Changelog
 
-本目录是独立的 npm 包 `opencode-teleagent-auth`（magpie 的 TeleAgent 供应商插件），
-本仓库独立成库：不依赖、也不包含 DeepSeek Harness 的插件。
+本仓库 `magpie-teleagent` 是 magpie / OpenCode 的 TeleAgent 供应商插件，
+作为独立 npm 包发布为 `opencode-teleagent-auth`；不依赖、也不包含 DeepSeek Harness 的插件。
+
+## Unreleased
+
+### 文档
+
+- 统一命名：仓库固定叫 `magpie-teleagent`，npm 包固定叫 `opencode-teleagent-auth`，
+  按用途分开写（README 首屏加了「哪个名字用在哪」对照表；npm 关键词去掉半改的旧名
+  `opencode-teleagent`，补上 `magpie-teleagent` / `opencode-teleagent-auth`）。
 
 ## 0.1.0 — 2026-11-08
 
