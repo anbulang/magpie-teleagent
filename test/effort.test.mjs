@@ -23,6 +23,7 @@ import path from 'node:path'
 import { MODELS, TELEAI_ACCEPTED_EFFORTS, TELEAI_DEFAULT_EFFORT, buildModels } from '../lib/models.mjs'
 import { normalizeUpstreamBody, reasoningOfBody } from '../lib/effort.mjs'
 import TeleAgentPlugin from '../index.mjs'
+import { writeAsar } from './helpers/asar-fixture.mjs'
 import { sealFixture } from './helpers/credential-fixture.mjs'
 
 describe('上游接受的思考档位', () => {
@@ -149,6 +150,7 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     PATH: process.env.PATH,
     TELEAGENT_DATA: process.env.TELEAGENT_DATA,
     TELEAGENT_CONFIG: process.env.TELEAGENT_CONFIG,
+    TELEAGENT_APP_PATH: process.env.TELEAGENT_APP_PATH,
   }
 
   beforeEach(() => {
@@ -173,6 +175,7 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     const appAuth = path.join(dataDir, 'app-auth')
     fs.mkdirSync(appAuth, { recursive: true })
     fs.writeFileSync(path.join(appAuth, 'device-meta.json'), JSON.stringify({ deviceId: 'd-1', installId: 'i-1' }))
+    writeAsar(path.join(home, 'app.asar'), { 'package.json': '{"version":"2.7.1"}' })
 
     // 假的 security：直接吐解密口令
     stubbed = fs.mkdtempSync(path.join(os.tmpdir(), 'te-fakebin-'))
@@ -183,6 +186,7 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     process.env.HOME = home
     process.env.TELEAGENT_DATA = dataDir
     process.env.TELEAGENT_CONFIG = path.join(home, '.config', 'TeleAgent')
+    process.env.TELEAGENT_APP_PATH = home
     process.env.PATH = `${stubbed}${path.delimiter}${prev.PATH ?? ''}`
   })
 

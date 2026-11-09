@@ -30,7 +30,6 @@ import { buildModels, MODELS, TELEAI_BASE_URL, TELEAI_ORIGIN } from './lib/model
 import {
   diagnoseCredential,
   listCredentialScopes,
-  readAppVersion,
   readDeviceMeta,
   REMEDIES,
   CredentialState,
@@ -38,6 +37,7 @@ import {
 import { createSignedFetch } from './lib/sign.mjs'
 import { normalizeUpstreamBody } from './lib/effort.mjs'
 import { createGuard } from './lib/guard.mjs'
+import { checkAppVersion } from './lib/installation.mjs'
 import { resolveApiKey } from './lib/apikey.mjs'
 import {
   readPortalAuth,
@@ -77,13 +77,8 @@ export default async function TeleAgentPlugin(input = {}) {
   }
   const say = (message) => { if (verbose()) log('info', message) }
 
-  /** scope → { guard, apiKey, appVersion } —— guard 按账号隔离（并发/熔断互不影响） */
+  /** scope → guard，按账号隔离并发与熔断 */
   const guards = new Map()
-
-  function apiKeyOnce() {
-    const opts = input?.magpie?.options ?? input?.magpie?.option ?? {}
-    return resolveApiKey({ explicit: typeof opts.apiKey === 'string' ? opts.apiKey : undefined })
-  }
 
   function guardFor(scope) {
     const existing = guards.get(scope)
@@ -170,6 +165,9 @@ export default async function TeleAgentPlugin(input = {}) {
          * token 会过期、会被重新登录替换，复制进 plugin-auth.json 只会变旧。
          */
         async authorize(inputs) {
+          const { error } = checkAppVersion()
+          if (error) return { type: 'failed', error }
+
           const selected = typeof inputs?.scope === 'string' ? inputs.scope : ''
           // __none__ 来自旧版的空列表占位项，不能作为真实目录读取。
           const wanted = selected === '__none__' || selected === '__current__' ? '' : selected
@@ -204,8 +202,8 @@ export default async function TeleAgentPlugin(input = {}) {
       async loader(getAuth) {
         const auth = await getAuth()
         const scope = scopeOf(auth)
-        const resolved = apiKeyOnce()
-        say(`loader：scope=${scope || '<default>'} apiKey=${resolved.source}`)
+        let resolved
+        let resolvedVersion
         return {
           baseURL: TELEAI_BASE_URL,
           // magpie 会按 @ai-sdk/openai-compatible 的规则发
@@ -235,10 +233,21 @@ export default async function TeleAgentPlugin(input = {}) {
               init = { ...init, body: effort.body }
             }
 
+            const installation = checkAppVersion()
+            if (installation.error) {
+              throw Object.assign(new Error(installation.error), { code: installation.code })
+            }
+
             // 凭据每次现读：在桌面端重新登录后不用重启 magpie
             const diagnosis = readAuth(scope)
             const device = readDeviceMeta()
-            const appVersion = readAppVersion()
+            const appVersion = installation.version
+            if (resolvedVersion !== appVersion) {
+              const opts = input?.magpie?.options ?? input?.magpie?.option ?? {}
+              resolved = resolveApiKey({ explicit: typeof opts.apiKey === 'string' ? opts.apiKey : undefined })
+              resolvedVersion = appVersion
+              say(`loader：scope=${scope || '<default>'} apiKey=${resolved.source}`)
+            }
             const signed = createSignedFetch({
               auth: {
                 token: diagnosis.token,
@@ -246,7 +255,7 @@ export default async function TeleAgentPlugin(input = {}) {
                 deviceId: device.deviceId ?? '',
                 appVersion,
               },
-              apiKey: () => resolved.key,
+              apiKey: resolved.key,
               // 熔断/并发按**账号**隔离：一个账号被封不该拖住另一个
               guard: guardFor(diagnosis.scope),
               log: verbose() ? say : undefined,
@@ -275,6 +284,9 @@ export default async function TeleAgentPlugin(input = {}) {
        * 也避免一次成功的积分查询清除模型侧真正的登录失效标记。
        */
       async usage(getAuth) {
+        const { error } = checkAppVersion()
+        if (error) return { signIn: 'kept', error, windows: [] }
+
         const auth = await getAuth()
         const scope = scopeOf(auth)
         const portal = safePortalAuth(scope)
@@ -311,6 +323,9 @@ export default async function TeleAgentPlugin(input = {}) {
 
       /** 每日签到（幂等；已领返回 done，不重复领取） */
       async checkin(getAuth) {
+        const { error } = checkAppVersion()
+        if (error) return { outcome: 'failed', message: error }
+
         const auth = await getAuth()
         const scope = scopeOf(auth)
         const portal = safePortalAuth(scope)
@@ -373,6 +388,9 @@ export default async function TeleAgentPlugin(input = {}) {
           required: [],
         },
         async execute() {
+          const { error } = checkAppVersion()
+          if (error) return { ok: false, error }
+
           const scope = currentAccountScope()
           const portal = safePortalAuth(scope)
           if (!portal) return { ok: false, error: '读不到积分凭据（cookie）：在 TeleAgent 桌面端登录一次' }
@@ -407,6 +425,9 @@ export default async function TeleAgentPlugin(input = {}) {
  * 其余可能没有 cookie（积分读不到）。这里把它们都列出来，并标注剩余天数。
  */
 function buildScopeOptions() {
+  const { error } = checkAppVersion()
+  if (error) return [{ label: error, value: '__current__' }]
+
   const scopes = listCredentialScopes()
   if (scopes.length === 0) {
     return [{ label: '自动检测当前账号（请先在 TeleAgent 桌面端登录）', value: '__current__' }]

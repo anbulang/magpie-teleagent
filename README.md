@@ -52,13 +52,15 @@
 ## 前置条件
 
 1. macOS 或 Windows（0.2.0 起支持 Windows；Linux 尚未适配）
-2. TeleAgent 桌面端已安装并**登录**，与 magpie 使用同一个操作系统用户
+2. TeleAgent 桌面端 **2.7.1 或更高版本**，已安装并**登录**，与 magpie 使用同一个操作系统用户
 3. magpie **0.1.684+**（`magpie --version`）；更早的版本模型能用，但积分与签到不跑
 4. macOS 首次读取时允许钥匙串授权；Windows 使用系统自带的 Windows PowerShell 和 DPAPI
 
 **不需要**：magpie 账号之外不用注册、不用申请 API key、不用手动复制 token、不用 root。
 
 > 桌面端不必一直开着，但**登录态要存在**——插件读的是磁盘凭据，不是运行中的进程。
+
+插件从安装包读取实际版本。版本低于 2.7.1 或无法读取时，插件会拦截账号接入、模型调用、积分查询和签到。
 
 Windows 数据目录是 `%USERPROFILE%\.local\share\TeleAgent`。安装资源会从用户的
 `AppData\Local\Programs\TeleAgent`、系统的 `Program Files\TeleAgent` 等位置查找。
@@ -257,7 +259,7 @@ sig = hex(HMAC-SHA256(key, msg))
 | `X-Superagent-Device-Id` / `-Install-Id` | `device-meta.json` 的 `deviceId` / `installId` |
 | `X-Superagent-Timestamp` / `-Nonce` | 每请求新生成的秒级时间戳与 UUID |
 | `X-Superagent-Signature` / `-Sign-Version` | 第二步算出的 sig，版本 `v1` |
-| `X-App-Version` | 桌面端 `CFBundleShortVersionString` |
+| `X-App-Version` | 桌面端 `app.asar` 中 `package.json` 的实际版本 |
 | `X-Route-Target` | `ops-gateway` |
 | `X-Session-Id` / `X-Message-Id` / `x-teleagent-session` | 本地生成的会话标识（opencode 系协议里本就由客户端生成） |
 
@@ -356,7 +358,8 @@ magpie provider test teleagent  # 3. 链路通不通（一次真实请求，花�
 | 现象 | 原因 | 动作 |
 |---|---|---|
 | 插件列表里没有 | 没装成功 / 装到别的 profile | `magpie plugin add <spec>`；确认 `--profile` |
-| 找不到桌面端安装资源 | 桌面端未安装或位于自定义路径 | 安装桌面端，或设置 `TELEAGENT_APP_PATH` |
+| 提示升级 TeleAgent | 已安装版本低于 2.7.1 | 将 TeleAgent 桌面端升级至 2.7.1 或更高版本 |
+| 无法读取桌面端版本 | 安装包缺失、不可读或位于自定义路径 | 安装或修复桌面端，或设置 `TELEAGENT_APP_PATH` |
 | 「数据目录不存在」 | 桌面端从没启动过 | 启动一次，让它初始化 `~/.local/share/TeleAgent` |
 | 「未登录」 | 没有 `app-auth/token.json` | 桌面端登录后 `magpie plugin login teleagent` |
 | 路径里出现 `users/__none__/app-auth/token.json` | 0.1.2 及更早版本把未登录时的占位选项当成账号 | 升级到 0.2.0 后重新执行插件登录；提交时会重新检测桌面端账号 |
