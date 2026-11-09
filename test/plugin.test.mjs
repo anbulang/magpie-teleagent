@@ -5,9 +5,11 @@
  * 只有拿不到凭据时的失败分支会被走到（那些分支本身也不发包）。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { writeAsar } from './helpers/asar-fixture.mjs'
 
 import TeleAgentPlugin, { PROVIDER, _internal } from '../index.mjs'
 import { MODELS } from '../lib/models.mjs'
@@ -230,11 +232,16 @@ describe('_internal', () => {
 describe('loader（没有凭据时）', () => {
   const prevData = process.env.TELEAGENT_DATA
   const prevCfg = process.env.TELEAGENT_CONFIG
+  const prevApp = process.env.TELEAGENT_APP_PATH
+  let install
 
   beforeEach(() => {
     // 指到不存在的目录：loader 会在发请求**之前**就失败，不会碰网络
     process.env.TELEAGENT_DATA = '/tmp/te-magpie-does-not-exist'
     process.env.TELEAGENT_CONFIG = '/tmp/te-magpie-does-not-exist-config'
+    install = mkdtempSync(path.join(os.tmpdir(), 'teleagent-plugin-'))
+    writeAsar(path.join(install, 'app.asar'), { 'package.json': '{"version":"2.7.1"}' })
+    process.env.TELEAGENT_APP_PATH = install
   })
 
   afterEach(() => {
@@ -242,6 +249,9 @@ describe('loader（没有凭据时）', () => {
     else process.env.TELEAGENT_DATA = prevData
     if (prevCfg === undefined) delete process.env.TELEAGENT_CONFIG
     else process.env.TELEAGENT_CONFIG = prevCfg
+    if (prevApp === undefined) delete process.env.TELEAGENT_APP_PATH
+    else process.env.TELEAGENT_APP_PATH = prevApp
+    rmSync(install, { recursive: true, force: true })
   })
 
   it('返回 baseURL / 占位 apiKey / fetch', async () => {

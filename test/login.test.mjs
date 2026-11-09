@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Database } from 'bun:sqlite'
+import { writeAsar } from './helpers/asar-fixture.mjs'
 import { sealFixture } from './helpers/credential-fixture.mjs'
 import TeleAgentPlugin from '../index.mjs'
 
@@ -12,7 +13,7 @@ describe('登录与刷新账号状态', () => {
   let home, data, previous, originalFetch
 
   beforeEach(() => {
-    previous = Object.fromEntries(['HOME', 'PATH', 'TELEAGENT_DATA', 'TELEAGENT_CONFIG']
+    previous = Object.fromEntries(['HOME', 'PATH', 'TELEAGENT_DATA', 'TELEAGENT_CONFIG', 'TELEAGENT_APP_PATH', 'TELEAGENT_API_KEY']
       .map((key) => [key, process.env[key]]))
     originalFetch = globalThis.fetch
     globalThis.fetch = async () => { throw new Error('Unexpected network request in login test') }
@@ -22,12 +23,21 @@ describe('登录与刷新账号状态', () => {
     fs.mkdirSync(data, { recursive: true })
     fs.mkdirSync(bin)
     fs.writeFileSync(path.join(bin, 'security'), '#!/bin/sh\nprintf fixture-password\n', { mode: 0o755 })
-    fs.writeFileSync(path.join(bin, 'defaults'), '#!/bin/sh\nprintf 2.7.1\n', { mode: 0o755 })
     process.env.HOME = home
     process.env.TELEAGENT_DATA = data
     process.env.TELEAGENT_CONFIG = path.join(home, '.config', 'TeleAgent')
     process.env.PATH = `${bin}${path.delimiter}${previous.PATH ?? ''}`
+    process.env.TELEAGENT_APP_PATH = home
+    delete process.env.TELEAGENT_API_KEY
+    installVersion('2.7.1')
   })
+
+  function installVersion(version, apiKey = 'fixture-gateway-key') {
+    writeAsar(path.join(home, 'app.asar'), {
+      'package.json': JSON.stringify({ version }),
+      'dist-electron/main-runtime-fixture.js': `{ id: "new-api", apiKey: "${apiKey}" }`,
+    })
+  }
 
   afterEach(() => {
     globalThis.fetch = originalFetch
@@ -83,6 +93,60 @@ describe('登录与刷新账号状态', () => {
     expect(result.error).toContain('v1_public_99')
   })
 
+  it.each(['2.7.0', '2.6.99', '2.7.1-rc.1'])('登录拒绝低于最低要求的版本 %s', async (version) => {
+    signIn()
+    installVersion(version)
+    const method = (await TeleAgentPlugin()).auth.methods[0]
+    expect(method.prompts[0].options[0].label).toContain('2.7.1')
+    const result = await method.authorize({ scope: 'v1_public_42' })
+    expect(result.type).toBe('failed')
+    expect(result.error).toContain(version)
+    expect(result.error).toContain('升级到 2.7.1')
+  })
+
+  it.each(['2.7.1+build.42', '2.7.10', '2.10.0', '3.0.0'])('登录接受符合最低要求的版本 %s', async (version) => {
+    signIn()
+    installVersion(version)
+    const method = (await TeleAgentPlugin()).auth.methods[0]
+    expect((await method.authorize({ scope: 'v1_public_42' })).type).toBe('success')
+  })
+
+  it('读不到安装版本时拒绝登录并提示安装路径', async () => {
+    signIn()
+    process.env.TELEAGENT_APP_PATH = path.join(home, 'missing')
+    const method = (await TeleAgentPlugin()).auth.methods[0]
+    const result = await method.authorize({ scope: 'v1_public_42' })
+    expect(result.type).toBe('failed')
+    expect(result.error).toContain('TELEAGENT_APP_PATH')
+  })
+
+  it('已保存账号的模型请求重新检查版本，并使用升级后的版本与网关 key', async () => {
+    signIn()
+    const hooks = await TeleAgentPlugin()
+    const opts = await hooks.auth.loader(async () => ({ key: 'v1_public_42' }))
+    const send = () => opts.fetch('https://agent.teleai.com.cn/superCowork/sapi/api/v1/chat/completions', {
+      method: 'POST', body: '{"model":"chat-flash","messages":[]}',
+    })
+    installVersion('2.7.0')
+    await expect(send()).rejects.toMatchObject({ code: 'app_version_unsupported' })
+    installVersion(undefined)
+    await expect(send()).rejects.toMatchObject({ code: 'app_version_unknown' })
+
+    let sentHeaders
+    globalThis.fetch = async (_url, init) => {
+      sentHeaders = new Headers(init.headers)
+      return new Response('{"ok":true}')
+    }
+    installVersion('2.7.1')
+    expect((await send()).status).toBe(200)
+    expect(sentHeaders.get('Authorization')).toBe('Bearer fixture-gateway-key')
+
+    installVersion('2.7.10', 'fixture-updated-key')
+    expect((await send()).status).toBe(200)
+    expect(sentHeaders.get('X-App-Version')).toBe('2.7.10')
+    expect(sentHeaders.get('Authorization')).toBe('Bearer fixture-updated-key')
+  })
+
   it('登录后刷新积分：缺少 cookie 不要求重新登录，模型请求仍可签名发出', async () => {
     signIn()
     const hooks = await TeleAgentPlugin({ magpie: { options: { apiKey: 'fixture-gateway-key' } } })
@@ -118,6 +182,16 @@ describe('登录与刷新账号状态', () => {
       db.run("INSERT INTO cookies VALUES ('agent.teleai.com.cn', 'operationToken', 'fixture-cookie', X'')")
     } finally { db.close() }
   }
+
+  it('旧版桌面端的积分查询和签到在发请求前提示升级', async () => {
+    installVersion('2.7.0')
+    portalCookie()
+    const hooks = await TeleAgentPlugin()
+    const getAuth = async () => ({ key: 'v1_public_42' })
+    expect(await hooks.auth.usage(getAuth)).toMatchObject({ signIn: 'kept', error: expect.stringContaining('2.7.1') })
+    expect(await hooks.auth.checkin(getAuth)).toMatchObject({ outcome: 'failed', message: expect.stringContaining('2.7.1') })
+    expect(await hooks.tool.points.execute()).toMatchObject({ ok: false, error: expect.stringContaining('2.7.1') })
+  })
 
   it('积分接口要求登录时，不把模型账号标为过期', async () => {
     portalCookie()
