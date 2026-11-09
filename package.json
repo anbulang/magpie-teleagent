@@ -12,6 +12,7 @@
     "index.mjs",
     "lib",
     "docs",
+    "assets",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
