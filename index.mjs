@@ -36,6 +36,7 @@ import {
   CredentialState,
 } from './lib/credential.mjs'
 import { createSignedFetch } from './lib/sign.mjs'
+import { normalizeUpstreamBody } from './lib/effort.mjs'
 import { createGuard } from './lib/guard.mjs'
 import { resolveApiKey } from './lib/apikey.mjs'
 import {
@@ -219,6 +220,18 @@ export default async function TeleAgentPlugin(input = {}) {
               return new Response(JSON.stringify({
                 error: { message: `TeleAgent 没有模型 ${asked}（可用：${MODELS.map((m) => m.id).join(' / ')}）`, type: 'invalid_request_error' },
               }), { status: 404, headers: { 'Content-Type': 'application/json' } })
+            }
+
+            // 思考档位：上游只认 low / high / max，且不接受"关闭思考"。
+            // 宿主会按它自己的通用理解写 reasoning_effort（实测 Claude Code 经
+            // magpie 网关会写 medium），medium 不在上游的三档里 → 整轮 400：
+            //   「该模型始终思考，不支持关闭思考；请使用 low、high 或 max。」
+            // 这里是所有请求的必经之路，也是插件能动的最后一处，所以在发出去
+            // 之前把档位削成上游认的（规则见 lib/effort.mjs）。
+            const effort = normalizeUpstreamBody(init?.body)
+            if (effort.changed) {
+              say(`思考档位：${effort.from || '<无>'} → ${effort.to ?? '<删除>（上游不接受关闭思考）'}`)
+              init = { ...init, body: effort.body }
             }
 
             // 凭据每次现读：在桌面端重新登录后不用重启 magpie

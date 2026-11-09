@@ -3,18 +3,67 @@
 本仓库与 npm 包同名，都是 `opencode-teleagent-auth`（magpie / OpenCode 的 TeleAgent 供应商插件）；
 不依赖、也不包含 DeepSeek Harness 的插件。
 
-## Unreleased
+## 0.1.2 — 2026-11-09
 
-### 文档
+修一个**必然失败**的线上问题：经 magpie 网关（Claude Code / Codex 等 agent）调用时，
+每一轮都被上游以 400 挡回：
+
+```
+API Error: 400 TeleAgent: 该模型始终思考，不支持关闭思考；请使用 low、high 或 max。
+```
+
+### 根因
+
+上游只认 `low` / `high` / `max` 三档，且**拒绝任何"关闭思考"的写法**。而宿主
+会按它自己对档位的通用理解往请求体里写 `reasoning_effort`：Claude Code 经 magpie
+网关发一轮对话时，magpie 把 anthropic 请求翻成 chat/completions 并写入
+`reasoning_effort: "medium"`（实测，magpie 的 `usage.jsonl` 里留有
+`"effort":"medium","status":400,"err_type":"1210"`）。`medium` 不在上游的三档里，
+于是整轮请求还没开始就被拒。
+
+插件的 loader `fetch` 当时是**纯透传**，把宿主的档位原样发给了上游。
+
+### 修复
+
+- 新增 `lib/effort.mjs`：在请求真正发出**之前**把档位削成上游认的
+  - `low` / `high` / `max`：原样保留（不改一个字节，避免破坏上游的提示词缓存）；
+  - `minimal` / `medium` / `xhigh`：落到**最近**的合法档位（`medium`→`high`、
+    `minimal`→`low`、`xhigh`→`high`），不擅自把用户要的强度降到底；
+  - 关闭类写法（`off` / `none` / `disabled` / 空值）：**删掉整个字段**——
+    上游没有"关闭"这个概念，删掉即"按模型默认思考"，是唯一合法的表达；
+  - 其它形状的开关（`enable_thinking`、`thinking`）：同样删掉，带上只会 400；
+  - 只碰思考相关的键，`messages` / `tools` / `temperature` 等一律不动；
+  - 正文没有思考字段时**原样返回同一个字符串**，不做 parse→stringify 往返。
+- `index.mjs` 的 loader `fetch` 接入这一层；`verbose` 打开时会打一行
+  `思考档位：medium → high`，便于日后核对。
+- `lib/models.mjs` 补一段说明：**插件没有声明档位的字段可用**——查 magpie 二进制
+  确认 `provider.info()` 合并模型时 `capabilities` 只读 `reasoning`（布尔），
+  档位来自 magpie 自己的 provider 配置（`Provider.ModelEfforts`），所以
+  "声明能力让宿主别发错档位"这条路走不通，只能在发请求前削。
+
+### 测试
+
+`test/effort.test.mjs`（17 项）。其中 3 项是**真实链路**回归：临时 HOME + 伪造的
+`security` 口令，走真实的 loader / 凭据 / 签名代码，只在最外层 fetch 打桩，
+断言"发出去的 `medium` 已经是 `high`"、"`off` 已被删掉"。这三项在移除修复后
+**确实会红**（已验证），不是永远绿的假测试。
+
+## 0.1.1 — 2026-11-09
+
+只改文档与元数据，插件行为与 0.1.0 **完全一致**（代码零改动）。
+
+### 变更
 
 - **仓库改名为 `opencode-teleagent-auth`**，与 npm 包名统一（旧地址
-  `anbulang/magpie-teleagent` 会由 GitHub 自动跳转）。`package.json` 的
-  `repository` / `homepage` / `bugs` 与 README 徽章、安装命令同步更新。
-  这样插件短名推导保持 `teleagent`（`opencode-` 前缀 + `-auth` 后缀被剥掉），
-  工具全名仍是 `teleagent_points`。
+  `anbulang/magpie-teleagent` 由 GitHub 自动跳转）。`package.json` 的
+  `repository` / `homepage` / `bugs` 指向新地址。
+  插件短名推导仍是 `teleagent`（`opencode-` 前缀 + `-auth` 后缀被剥掉），
+  工具全名仍是 `teleagent_points`、MCP 短名仍是 `teleagent`，**升级不影响任何已有配置**。
 - README 重写：参考 `dsh-connect-teleagent` 的排版（徽章 / 特性 / 模型 / 安装 / 使用 /
   原理 / 费用与风险 / 故障排查 / 隐私 / 开发 / 限制），从 950 行压到 460 行；
   顺手修掉拆分仓库时残留的错误路径（`magpie/lib/`、`cd magpie`、`magpie/scripts/`）。
+- 新增 `assets/icon.svg`（registry 卡片图标，随包发布）。
+- npm 关键词调整：去掉半改的旧名 `opencode-teleagent`。
 
 ## 0.1.0 — 2026-11-08
 

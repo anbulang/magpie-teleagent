@@ -1,6 +1,6 @@
 {
   "name": "opencode-teleagent-auth",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "magpie / OpenCode provider plugin: TeleAgent (天翼 AI 星辰超级智能体) models through the desktop app's own sign-in",
   "type": "module",
   "main": "./index.mjs",
