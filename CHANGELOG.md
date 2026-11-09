@@ -3,6 +3,27 @@
 本仓库与 npm 包同名，都是 `opencode-teleagent-auth`（magpie / OpenCode 的 TeleAgent 供应商插件）；
 不依赖、也不包含 DeepSeek Harness 的插件。
 
+## 0.2.0 — 2026-11-09
+
+- 新增 Windows 支持：用同一系统用户的 DPAPI 解锁 `Local State` 密钥，再解密 Electron
+  v10 AES-256-GCM token；保留旧 DPAPI 格式读取，明确拒绝未知加密版本。敏感值不进入命令行或日志。
+- 新增跨平台安装资源发现，支持 `TELEAGENT_APP_PATH`，从 ASAR 读取版本与网关配置；
+  修正 ASAR pickle 对齐偏移。数据路径改用系统主目录，不再依赖 `HOME` 环境变量。
+- 积分读取优先使用 Bun / Node 内置 SQLite，不要求 Windows 预装 sqlite3；读取数据库及 WAL 副本，
+  支持 Windows 加密 cookie 和 v24+ 域名哈希校验，并只读取 TeleAgent 域名的 cookie。
+
+- 修复首次安装时未登录桌面端，之后登录并刷新仍读取 `users/__none__/app-auth/token.json`：
+  提交时重新解析自动检测选项，并兼容旧版缓存的 `__none__`。明确选定的账号缺少凭据时仍报错，
+  不自动借用其他账号。
+- 修复 magpie 刷新积分时可能把模型账号标为「需要登录」：积分 cookie 与模型 JWT 是独立凭据，
+  `auth.usage` 无论成功或失败都返回 `signIn: kept`，不再改变模型登录状态。
+  已被旧版误标的账号，更新后需执行一次插件登录清除旧状态。
+- 统一积分与聊天的数据目录解析；积分查询也遵守 `TELEAGENT_DATA`，保留账号分区隔离。
+- 增加 macOS / Windows CI，Windows 上运行原生 DPAPI 解密、登录和加密 cookie 测试。
+  Linux 支持尚未实现。
+- 增加离线回归：缓存空选项后登录、旧占位符兼容、未登录提示、指定账号隔离、
+  登录后积分刷新及签名请求、积分错误/成功不改变模型登录状态、自定义目录 cookie 读取。
+
 ## 0.1.2 — 2026-11-09
 
 修一个**必然失败**的线上问题：经 magpie 网关（Claude Code / Codex 等 agent）调用时，

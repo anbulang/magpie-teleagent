@@ -16,7 +16,7 @@
 { "version": 1, "encryptedToken": "djEw...", "encrypted": true, "scheme": "safe_storage" }
 ```
 
-解密链路：
+以下是本插件已实现的 **macOS** 解密链路；不能直接用于 Windows / Linux：
 
 ```text
 password = security find-generic-password -s "TeleAgent Safe Storage" -w
@@ -40,6 +40,21 @@ JWT 声明里对插件有用的字段：
 **没有 refresh token**，也没有续期接口。过期只能回桌面端重新登录。
 
 实现：`lib/credential.mjs`。
+
+### Windows（0.2.0 起）
+
+TeleAgent 2.7.1 使用 Electron 43.1.0。该版本 Windows safeStorage 的 `v10` 布局是
+`v10`（3 字节）+ nonce（12 字节）+ AES-256-GCM 密文 + tag（16 字节），无 AAD。
+`$APP_DATA/Local State` 中的 `os_crypt.encrypted_key` 解 Base64 后是 `DPAPI` 前缀和
+系统加密的 32 字节密钥；去掉前 5 字节，由同一 Windows 用户调用 `ProtectedData.Unprotect`。
+
+插件通过 Windows PowerShell stdin 传入密文、stdout 返回 Base64 密钥；不把 token 或密钥放进
+argv，不保留解密子进程异常里的 stdout/stderr，不缓存解密密钥。旧版原始 DPAPI 数据也可读取，
+`v11` / `v20` 等未知版本明确失败。
+
+依据：[Electron 43.1.0 OSCrypt 实现](https://github.com/electron/electron/blob/v43.1.0/patches/chromium/revert_oscrypt_remove_sync_backend.patch)。
+实现：`lib/windows-crypto.mjs`。数据目录仍是用户主目录下 `.local/share/TeleAgent`；
+安装目录与用户数据目录相互独立。
 
 ### 设备指纹
 
@@ -171,11 +186,17 @@ sig = hex(HMAC-SHA256(key, msg))
 $APP_DATA/Partitions/owner%3A<scope>/Cookies
 ```
 
-这是 SQLite。实测该实例把值**明文存在 `value` 列**（`encrypted_value` 为空），
-所以不需要钥匙串解密。若将来改成加密存储，`readCookieValues` 会读不到值并
-返回 `null`（积分不可用），而不是给出错误余额。
+这是 SQLite。已检查的 macOS 实例把值存在 `value` 列；Windows 可将值放在
+`encrypted_value`，插件使用与 token 相同的本机密钥解密。Chromium schema 24+
+在明文前放入 `SHA256(host_key)`，插件校验后才剥掉前 32 字节。
+只接受 `agent.teleai.com.cn` 或 `.agent.teleai.com.cn` 的两个目标 cookie。
 
-**必须先复制再读**：桌面端运行时会锁库。
+读取路径优先 `Network/Cookies`，再尝试旧版 `Cookies`；自动检测账号时先读当前账号分区，
+之后才尝试主库，明确指定账号时始终不回退主库。数据库和 WAL 复制到私有临时目录后只读打开，
+使用 Bun/Node 内置 SQLite，旧 Node 才回退 CLI。未知加密格式返回积分不可用，保留模型登录状态。
+
+依据：[Electron 43.1.0 网络路径](https://github.com/electron/electron/blob/v43.1.0/shell/browser/net/network_context_service.cc)、
+[Chromium cookie 域名哈希](https://chromium.googlesource.com/chromium/src/+/main/net/extras/sqlite/sqlite_persistent_cookie_store.cc)。
 
 ### 用到的接口
 

@@ -2,8 +2,7 @@
  * 网关 apiKey 读取的单元测试。
  *
  * **不读真实 app.asar、不用真实 key**：用临时目录造一个「像 asar 的文件」
- * （4 字节 pickle 头 + JSON 头 + 文件体），验证解析逻辑；再从真实安装包里
- * 读一次，确认「读得到或明确读不到」而不是抛错。
+ * （4 字节 pickle 头 + JSON 头及对齐填充 + 文件体），验证解析逻辑。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs'
@@ -46,13 +45,14 @@ function makeAsar(filePath, files) {
   }
   const header = JSON.stringify({ files: entries })
   const headerBuf = Buffer.from(header, 'utf8')
+  const padding = Buffer.alloc((4 - headerBuf.length % 4) % 4)
   // pickle: uint32(4) + uint32(headerSize) + uint32(pickledJsonSize) + uint32(jsonLen)
   const pickle = Buffer.alloc(16)
   pickle.writeUInt32LE(4, 0)
-  pickle.writeUInt32LE(headerBuf.length + 8, 4)
-  pickle.writeUInt32LE(headerBuf.length + 4, 8)
+  pickle.writeUInt32LE(headerBuf.length + padding.length + 8, 4)
+  pickle.writeUInt32LE(headerBuf.length + padding.length + 4, 8)
   pickle.writeUInt32LE(headerBuf.length, 12)
-  fs.writeFileSync(filePath, Buffer.concat([pickle, headerBuf, ...bodies]))
+  fs.writeFileSync(filePath, Buffer.concat([pickle, headerBuf, padding, ...bodies]))
   return filePath
 }
 
@@ -100,6 +100,24 @@ describe('readApiKeyFromAsar', () => {
     fs.mkdirSync(path.join(bundle, 'Contents', 'Resources'), { recursive: true })
     fs.writeFileSync(path.join(bundle, 'Contents', 'Resources', 'app.asar'), 'garbage')
     expect(readApiKeyFromAsar(bundle)).toBe('')
+  })
+
+  it('从显式安装目录的 resources/app.asar 读取，适用于 Windows 布局', () => {
+    const install = path.join(dir, 'TeleAgent')
+    const resources = path.join(install, 'resources')
+    fs.mkdirSync(resources, { recursive: true })
+    makeAsar(path.join(resources, 'app.asar'), {
+      'dist-electron/main-runtime-win.js': 'id: "new-api", options: { apiKey: "sk-test-windows" }',
+    })
+    expect(readApiKeyFromAsar({ env: { TELEAGENT_APP_PATH: install } })).toBe('sk-test-windows')
+  })
+
+  it('已知 resources 目录时直接读取，不依赖默认安装位置', () => {
+    const bundle = makeBundle({
+      'dist-electron/main-runtime-x.js': 'id: "new-api", options: { apiKey: "sk-test-resources" }',
+    })
+    expect(readApiKeyFromAsar({ resources: path.join(bundle, 'Contents', 'Resources') }))
+      .toBe('sk-test-resources')
   })
 })
 
@@ -152,11 +170,19 @@ describe('resolveApiKey 的优先级', () => {
 
   it('都没有时给 source「未找到」，不抛（请求仍会发，由上游 40105 说明）', () => {
     delete process.env.TELEAGENT_API_KEY
-    const r = resolveApiKey({ home: path.join(dir, 'none') })
-    // 本机可能真的装了 TeleAgent，此时会从安装包里读到；两种都接受
-    expect(typeof r.key).toBe('string')
-    expect(typeof r.source).toBe('string')
-    if (r.key === '') expect(r.source).toBe('未找到')
+    const r = resolveApiKey({ home: path.join(dir, 'none'), exists: () => false, env: {} })
+    // 只输出真假，不会在旧实现失败时把本机安装包中的 key 打印到测试日志。
+    expect(r.key === '').toBe(true)
+    expect(r.source).toBe('未找到')
+  })
+
+  it('配置和环境变量都缺失时读取指定安装包', () => {
+    const bundle = makeBundle({
+      'dist-electron/main-runtime-x.js': 'id: "new-api", options: { apiKey: "sk-test-resolver" }',
+    })
+    const result = resolveApiKey({ home: path.join(dir, 'none'), env: {}, resources: path.join(bundle, 'Contents', 'Resources') })
+    expect(result.key === 'sk-test-resolver').toBe(true)
+    expect(result.source).toBe('桌面端安装包')
   })
 
   it('永远不稳定返回太长/带空白的值', () => {

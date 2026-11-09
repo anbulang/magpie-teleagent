@@ -36,8 +36,8 @@ describe('package.json', () => {
     expect(PKG.keywords).toContain('opencode-plugin')
   })
 
-  it('只在 macOS 上可装', () => {
-    expect(PKG.os).toEqual(['darwin'])
+  it('允许 macOS 和 Windows 安装', () => {
+    expect(PKG.os).toEqual(['darwin', 'win32'])
   })
 
   it('没有运行时依赖（Bun 直接跑）', () => {

@@ -105,7 +105,7 @@ export default async function TeleAgentPlugin(input = {}) {
    * 登录后不用重启 magpie」成立。
    */
   function readAuth(scope) {
-    const diagnosis = diagnoseCredential(process.env.HOME ?? '', scope ? { scope } : {})
+    const diagnosis = diagnoseCredential(undefined, scope ? { scope } : {})
     if (!diagnosis.ok) {
       const error = new Error(`TeleAgent 凭据不可用：${diagnosis.detail}${diagnosis.remedy ? `；${diagnosis.remedy}` : ''}`)
       error.code = diagnosis.state
@@ -154,9 +154,8 @@ export default async function TeleAgentPlugin(input = {}) {
         keyless: true,
         label: '读取本机 TeleAgent 登录态',
         placeholder: '本机已登录的账号',
-        // prompts 用 getter：magpie 每次问这一步时都会重新读一遍，
-        // 于是你刚在桌面端登录的新账号，下一次 login 就能出现在下拉框里
-        // （不需要重启 magpie 宿主）。
+        // getter 在宿主重新读取时更新账号列表；界面可能仍持有序列化后的旧选项，
+        // 因此 authorize 也必须在提交时重新解析「自动检测」。
         get prompts() {
           const options = buildScopeOptions()
           return [{
@@ -171,8 +170,10 @@ export default async function TeleAgentPlugin(input = {}) {
          * token 会过期、会被重新登录替换，复制进 plugin-auth.json 只会变旧。
          */
         async authorize(inputs) {
-          const wanted = typeof inputs?.scope === 'string' ? inputs.scope : ''
-          const diagnosis = diagnoseCredential(process.env.HOME ?? '', wanted ? { scope: wanted } : {})
+          const selected = typeof inputs?.scope === 'string' ? inputs.scope : ''
+          // __none__ 来自旧版的空列表占位项，不能作为真实目录读取。
+          const wanted = selected === '__none__' || selected === '__current__' ? '' : selected
+          const diagnosis = diagnoseCredential(undefined, wanted ? { scope: wanted } : {})
           if (!diagnosis.ok) {
             return {
               type: 'failed',
@@ -236,7 +237,7 @@ export default async function TeleAgentPlugin(input = {}) {
 
             // 凭据每次现读：在桌面端重新登录后不用重启 magpie
             const diagnosis = readAuth(scope)
-            const device = readDeviceMeta(process.env.HOME ?? '')
+            const device = readDeviceMeta()
             const appVersion = readAppVersion()
             const signed = createSignedFetch({
               auth: {
@@ -268,7 +269,11 @@ export default async function TeleAgentPlugin(input = {}) {
         }
       },
 
-      /** 用量：只读 portal（不花积分、不发模型请求） */
+      /**
+       * 用量只反映 portal 状态：cookie 与模型 JWT 是独立凭据。
+       * 所有结果均保留模型登录状态，避免 tab 刷新因积分错误将账号标为过期，
+       * 也避免一次成功的积分查询清除模型侧真正的登录失效标记。
+       */
       async usage(getAuth) {
         const auth = await getAuth()
         const scope = scopeOf(auth)
@@ -276,7 +281,8 @@ export default async function TeleAgentPlugin(input = {}) {
         if (!portal) {
           return {
             plan: undefined,
-            error: '读不到积分凭据（cookie）：在 TeleAgent 桌面端登录一次即可',
+            signIn: 'kept',
+            error: '积分暂不可用：缺少该账号的积分 cookie，请在 TeleAgent 桌面端切到该账号并打开积分页面',
             windows: [],
           }
         }
@@ -285,7 +291,7 @@ export default async function TeleAgentPlugin(input = {}) {
           fetchUserCenter(portal).catch(() => ({ ok: false })),
         ])
         if (!points.ok) {
-          return { error: points.error ?? '读取积分失败', windows: [] }
+          return { signIn: 'kept', error: points.error ?? '读取积分失败', windows: [] }
         }
         const windows = [{
           // balance：预付钱包式余额，没有 used/limit，不参与「用尽」判断
@@ -295,6 +301,7 @@ export default async function TeleAgentPlugin(input = {}) {
           ...(points.expiresAt ? { runsOutAt: points.expiresAt } : {}),
         }]
         return {
+          signIn: 'kept',
           plan: center.ok ? (center.planName ?? undefined) : undefined,
           // 顶层 balance 不再给：它和窗口里的 balance 是同一个数，
           // magpie 会把两者都画出来（实测重复显示两遍）
@@ -402,10 +409,10 @@ export default async function TeleAgentPlugin(input = {}) {
 function buildScopeOptions() {
   const scopes = listCredentialScopes()
   if (scopes.length === 0) {
-    return [{ label: '（未找到已登录的 TeleAgent 账号）', value: '__none__' }]
+    return [{ label: '自动检测当前账号（请先在 TeleAgent 桌面端登录）', value: '__current__' }]
   }
   return scopes.map((scope) => {
-    const d = diagnoseCredential(process.env.HOME ?? '', { scope })
+    const d = diagnoseCredential(undefined, { scope })
     if (!d.ok) {
       return { label: `${scope}（不可用：${REMEDIES[d.state] ? shortRemedy(d.state) : d.detail}）`, value: scope }
     }
@@ -422,14 +429,14 @@ function shortRemedy(state) {
 
 /** 当前账号的 scope（工具调用没有账号上下文时用） */
 function currentAccountScope() {
-  const d = diagnoseCredential(process.env.HOME ?? '')
+  const d = diagnoseCredential()
   return d.ok ? d.scope : ''
 }
 
 /** 读 portal 凭据（永不抛） */
 function safePortalAuth(scope) {
   try {
-    return readPortalAuth(process.env.HOME ?? '', scope || undefined)
+    return readPortalAuth(undefined, scope || undefined)
   } catch {
     return null
   }

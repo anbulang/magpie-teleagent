@@ -19,11 +19,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import crypto from 'node:crypto'
 
 import { MODELS, TELEAI_ACCEPTED_EFFORTS, TELEAI_DEFAULT_EFFORT, buildModels } from '../lib/models.mjs'
 import { normalizeUpstreamBody, reasoningOfBody } from '../lib/effort.mjs'
 import TeleAgentPlugin from '../index.mjs'
+import { sealFixture } from './helpers/credential-fixture.mjs'
 
 describe('上游接受的思考档位', () => {
   it('就是 low / high / max（来自上游 400 的原话）', () => {
@@ -151,14 +151,6 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     TELEAGENT_CONFIG: process.env.TELEAGENT_CONFIG,
   }
 
-  /** 与 Electron 同样的 safeStorage v10 封装 */
-  function sealV10(plain, password) {
-    const key = crypto.pbkdf2Sync(Buffer.from(password, 'utf8'), 'saltysalt', 1003, 16, 'sha1')
-    const cipher = crypto.createCipheriv('aes-128-cbc', key, Buffer.alloc(16, 0x20))
-    const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
-    return Buffer.concat([Buffer.from('v10'), body]).toString('base64')
-  }
-
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'te-magpie-effort-'))
     const dataDir = path.join(home, '.local', 'share', 'TeleAgent')
@@ -174,7 +166,7 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     })}.sig`
     fs.writeFileSync(path.join(dir, 'token.json'), JSON.stringify({
       version: 1,
-      encryptedToken: sealV10(`tenant:${token}`, 'pw-1'),
+      encryptedToken: sealFixture(`tenant:${token}`, 'pw-1', dataDir),
       encrypted: true,
       scheme: 'safe_storage',
     }))
@@ -191,7 +183,7 @@ describe('loader fetch 的接线（真实故障复现）', () => {
     process.env.HOME = home
     process.env.TELEAGENT_DATA = dataDir
     process.env.TELEAGENT_CONFIG = path.join(home, '.config', 'TeleAgent')
-    process.env.PATH = `${stubbed}:${prev.PATH ?? ''}`
+    process.env.PATH = `${stubbed}${path.delimiter}${prev.PATH ?? ''}`
   })
 
   afterEach(() => {
