@@ -41,6 +41,8 @@ import { checkAppVersion } from './lib/installation.mjs'
 import { resolveApiKey } from './lib/apikey.mjs'
 import {
   readPortalAuth,
+  portalAuthFromToken,
+  userIdFromScope,
   fetchPoints,
   fetchDailyStatus,
   claimDaily,
@@ -454,10 +456,25 @@ function currentAccountScope() {
   return d.ok ? d.scope : ''
 }
 
-/** 读 portal 凭据（永不抛） */
+/**
+ * 读 portal 凭据（永不抛）。
+ *
+ * 顺序：cookie（原路径） → 登录 JWT（回退）。
+ *
+ * 回退这一层是本 PR 要修的问题：桌面端运行时 Chromium 独占锁住 cookie 库，
+ * cookie 读不到，积分与签到恒失败（issue #4）。而 portal 接口本来就认
+ * `X-Token`，登录 JWT 可以直接用，所以读不到 cookie 时不再直接放弃。
+ */
 function safePortalAuth(scope) {
   try {
-    return readPortalAuth(undefined, scope || undefined)
+    const fromCookie = readPortalAuth(undefined, scope || undefined)
+    if (fromCookie) return fromCookie
+  } catch { /* 落到下面的回退 */ }
+
+  try {
+    const diagnosis = diagnoseCredential(undefined, scope ? { scope } : {})
+    if (!diagnosis.ok) return null
+    return portalAuthFromToken(userIdFromScope(diagnosis.scope), diagnosis.token)
   } catch {
     return null
   }
