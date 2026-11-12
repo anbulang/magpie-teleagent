@@ -31,6 +31,7 @@ import {
   findCookieDb,
   readCookieValues,
   readPortalAuth,
+  portalAuthFromToken,
   portalRequest,
   fetchPoints,
   fetchDailyStatus,
@@ -125,6 +126,46 @@ describe('userIdFromScope', () => {
 
   it('宽松兜底：任意形如 xxx_<数字> 也取尾段', () => {
     expect(userIdFromScope('owner_123456')).toBe('123456')
+  })
+})
+
+// -------------------------------------------------- cookie 读不到时的 JWT 回退
+
+describe('portalAuthFromToken', () => {
+  it('把登录 JWT 当作 X-Token 凭据（cookie 库被桌面端独占锁住时的回退）', () => {
+    const auth = portalAuthFromToken('2092131099330392064', 'tenant:aaa.bbb.ccc')
+    expect(auth).toEqual({
+      userId: '2092131099330392064',
+      operationToken: 'tenant:aaa.bbb.ccc',
+      operToken: '',
+      source: 'login-token',
+    })
+  })
+
+  it('去空白，但保留 `<tenant>:` 前缀', () => {
+    expect(portalAuthFromToken('42', '  tenant:jwt  ').operationToken).toBe('tenant:jwt')
+  })
+
+  it('缺 userId 或 token 时返回 null（不造半个凭据）', () => {
+    expect(portalAuthFromToken('', 'tenant:jwt')).toBeNull()
+    expect(portalAuthFromToken('42', '')).toBeNull()
+    expect(portalAuthFromToken('42', '   ')).toBeNull()
+    expect(portalAuthFromToken('42', undefined)).toBeNull()
+    expect(portalAuthFromToken(undefined, 'tenant:jwt')).toBeNull()
+  })
+
+  it('回退凭据能直接喂给 portalRequest（凭证走已有的 X-Token 头，不需要新增字段）', async () => {
+    let seen
+    const body = await portalRequest(portalAuthFromToken('42', 'tenant:jwt'), '/points/detail', {
+      fetchImpl: async (_url, init) => {
+        seen = new Headers(init.headers)
+        return new Response(JSON.stringify({ code: 200, data: { pointsBalance: 1234 } }))
+      },
+    })
+    expect(body.ok).toBe(true)
+    expect(body.json.data.pointsBalance).toBe(1234)
+    expect(seen.get('X-Token')).toBe('tenant:jwt')
+    expect(seen.get('userId')).toBe('42')
   })
 })
 

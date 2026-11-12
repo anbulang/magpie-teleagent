@@ -147,17 +147,31 @@ describe('登录与刷新账号状态', () => {
     expect(sentHeaders.get('Authorization')).toBe('Bearer fixture-updated-key')
   })
 
-  it('登录后刷新积分：缺少 cookie 不要求重新登录，模型请求仍可签名发出', async () => {
+  it('登录后刷新积分：读不到 cookie 时回退到登录 JWT，模型请求仍可签名发出', async () => {
     signIn()
     const hooks = await TeleAgentPlugin({ magpie: { options: { apiKey: 'fixture-gateway-key' } } })
     const result = await hooks.auth.methods[0].authorize({ scope: 'v1_public_42' })
     expect(result.type).toBe('success')
     // Magpie 的 api 登录保存 key + metadata，随后 tab 刷新通过 usage 查询积分。
     const getAuth = async () => ({ type: 'api', key: result.key, metadata: result.metadata })
+
+    // 桌面端运行时 Chromium 独占锁住 cookie 库，readPortalAuth 拿不到 operationToken。
+    // 此时应改用登录 JWT 作为 X-Token 直连同一个网关，而不是报「缺少积分 cookie」。
+    let portalHeaders
+    globalThis.fetch = async (url, init) => {
+      portalHeaders = new Headers(init.headers)
+      return new Response(JSON.stringify({
+        code: 200,
+        data: { pointsBalance: 6596.44, userRole: 'INDIVIDUAL', groups: [] },
+      }))
+    }
     const usage = await hooks.auth.usage(getAuth)
-    expect(usage.windows).toEqual([])
-    expect(usage.error).toContain('积分')
+    expect(usage.error).toBeUndefined()
+    expect(usage.windows[0].balance).toBe(6596.44)
     expect(usage.signIn).toBe('kept')
+    // 回退用的确实是账号自己的登录 JWT（不是 cookie，也不是空串）
+    expect(portalHeaders.get('X-Token')).toContain('.fixture-signature')
+
     const opts = await hooks.auth.loader(getAuth)
     let requests = 0
     globalThis.fetch = async () => {

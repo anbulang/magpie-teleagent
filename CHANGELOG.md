@@ -3,6 +3,16 @@
 本仓库与 npm 包同名，都是 `opencode-teleagent-auth`（magpie / OpenCode 的 TeleAgent 供应商插件）；
 不依赖、也不包含 DeepSeek Harness 的插件。
 
+## 未发布
+
+- 修复桌面端**运行中**读不到积分、签不了到（#4）：Chromium 以 `locking_mode=EXCLUSIVE`
+  锁住 `Partitions/<owner>/Network/Cookies`，Windows 上 `FileShare.ReadWrite` 也打不开
+  （`copyFileSync` 直接 `EBUSY`），`readPortalAuth` 于是恒返回 null。
+  现在 cookie 读不到时改用账号自己的登录 JWT 作为 `X-Token` 直连同一个网关
+  （`lib/portal.mjs` 新增 `portalAuthFromToken`）。portal 接口本来就认 `X-Token`，
+  桌面端源码注释也写明「换新/logout 与现网一致使用 X-Token，不引入 Bearer」。
+  **原有 cookie 路径优先级不变**，只在它返回 null 时回退；不新增任何持久化。
+
 ## 0.2.0 — 2026-11-09
 
 - 新增 Windows 支持：用同一系统用户的 DPAPI 解锁 `Local State` 密钥，再解密 Electron
